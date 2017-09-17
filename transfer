@@ -1,0 +1,240 @@
+function(progress, r1, g1, b1, a1, r2, g2, b2, a2)
+    if aura_env then
+        
+        local red, green, blue, alpha = 1, 1, 1, 1
+        --Regions 
+        local region = WeakAuras.regions[aura_env.id].region
+        local bar = region.bar
+        --Druid forms
+        local cat = UnitBuff("player",GetSpellInfo(768))
+        local bear = UnitBuff("player",GetSpellInfo(5487))
+        local moonkin = UnitBuff("player",GetSpellInfo(24858))
+        --Max power
+        local maxEnergy = UnitPowerMax("player" , SPELL_POWER_ENERGY);
+        local maxRage = UnitPowerMax("player" , SPELL_POWER_RAGE);
+        local maxAstral = UnitPowerMax("player" , SPELL_POWER_LUNAR_POWER);
+        local maxMana = UnitPowerMax("player" , SPELL_POWER_MANA);
+        --Current power
+        local haste = UnitSpellHaste("player")
+        local rage = UnitPower("player", SPELL_POWER_RAGE);
+        local mana = UnitPower("player", SPELL_POWER_MANA);
+        local energy = UnitPower("player", SPELL_POWER_ENERGY);
+        local astral = UnitPower("player", SPELL_POWER_LUNAR_POWER);
+        local totalDisplayedPower = astral
+        --Set form vars
+        if cat then 
+            druidPower = energy
+            red, green, blue, alpha = 1, 1, 0, 1
+            WeakAuras.regions[aura_env.id].region.bar.bg:SetVertexColor(0.4, 0.4, 0, 1);
+        elseif bear then
+            druidPower = rage
+            red, green, blue, alpha = 1, 0, 0, 1
+            WeakAuras.regions[aura_env.id].region.bar.bg:SetVertexColor(0.4, 0, 0, 1);
+        elseif moonkin then
+            druidPower = astral
+            red, green, blue, alpha = 0.31, 0.59, 1, 1
+            WeakAuras.regions[aura_env.id].region.bar.bg:SetVertexColor(0.14, 0.24, 0.4, 1);
+        else 
+            druidPower = (mana/maxMana)*100
+            red, green, blue, alpha = 0, 0.65, 1, 1 
+            WeakAuras.regions[aura_env.id].region.bar.bg:SetVertexColor(0, 0.24, 0.4, 1);
+        end
+        
+        --Calculate how much to increment vs max power
+        local sizePerPower
+        if aura_env.orientation == "HORIZONTAL" or aura_env.orientation == "HORIZONTAL_INVERSE" then
+            sizePerPower = bar:GetWidth() / maxAstral
+        elseif aura_env.orientation == "VERTICAL" or aura_env.orientation == "VERTICAL_INVERSE" then
+            sizePerPower = bar:GetHeight() / maxAstral
+        end
+        --centerText Display
+        local textCenter = bar.centerText
+        local druidExpFontName, druidExpFontHeight, druidExpFontFlags = WeakAuras.regions[aura_env.id].region.text:GetFont()
+        if not moonkin then
+            textCenter:SetText(string.format("%.0f", druidPower))
+        elseif moonkin and aura_env.predictionOverwrite == true then
+            textCenter:SetText(string.format("%0.f", druidPower+aura_env.getPowerFromCast()))
+            if aura_env.getPowerFromCast() + astral > maxAstral then
+                textCenter:SetText("|cFFFF0000*|r".. druidPower+aura_env.getPowerFromCast().."|cFFFF0000*|r")
+            end
+        elseif moonkin and aura_env.predictionOverwrite == false then
+            textCenter:SetText(druidPower)
+            if aura_env.getPowerFromCast() > 0 then
+                textCenter:SetText(druidPower.. "(".. druidPower+aura_env.getPowerFromCast()..")")
+                if aura_env.getPowerFromCast() + astral > maxAstral then
+                    textCenter:SetText(druidPower.. "(|cFFFF0000*|r".. druidPower+aura_env.getPowerFromCast().."|cFFFF0000*|r)")
+                end
+            end
+        else
+            textCenter:SetText(druidPower)
+        end
+        --Set position of centerText (power)
+        if moonkin and aura_env.moonkinHaste == true then
+            aura_env.textPosition == "LEFT"
+            bar:ClearAllPoints()
+            textCenter:SetFont(druidExpFontName, druidExpFontHeight, druidExpFontFlags)
+            textCenter:SetPoint(aura_env.textPosition, bar, aura_env.textPosition, 0, 0)
+            textCenter:Show()
+        else
+            aura_env.textPosition == "CENTER"
+            bar:ClearAllPoints()
+            textCenter:SetFont(druidExpFontName, druidExpFontHeight, druidExpFontFlags)
+            textCenter:SetPoint(aura_env.textPosition, bar, aura_env.textPosition, 0, 0)
+            textCenter:Show()
+        end
+        --Set position of leftText (haste)
+        if aura_env.moonkinHaste == true and moonkin then
+            bar.leftText:SetText(string.format("%.1f", haste).. "%")
+            bar.leftText:SetFont(druidExpFontName, druidExpFontHeight, druidExpFontFlags)
+            bar.leftText:SetPoint("LEFT", bar, "LEFT", 1, 0)
+            bar.leftText:Show()
+        else
+            bar.leftText:Hide()
+        end
+        
+        --Create prediction bar
+        local powerFromCast = aura_env.getPowerFromCast()
+        
+        if powerFromCast > 0 and moonkin then
+            local castWidth, castHeight = 0, 0
+            local castSize = sizePerPower * powerFromCast
+            local maxAstralSize = sizePerPower * maxAstral
+            local astralSize = sizePerPower * astral
+            if aura_env.orientation == "HORIZONTAL" or aura_env.orientation == "HORIZONTAL_INVERSE" then
+                if castSize + astralSize > maxAstralSize then
+                    castWidth = maxAstralSize - astralSize 
+                else
+                    castWidth = castSize
+                end
+                castHeight = bar:GetHeight()
+                if aura_env.orientation == "VERTICAL" or aura_env.orientation == "VERTICAL_INVERSE" then
+                    if castSize + astralSize > maxAstralSize then
+                        castHeight = maxAstralSize - astralSize 
+                    else
+                        castHeight = castSize
+                    end
+                    castHeight = castSize
+                    castWidth = bar:GetWidth()
+                end
+                
+            end
+            --Set prediction bar anchor
+            bar.cast:SetPoint(
+                aura_env.point,
+                bar.fg,
+                aura_env.castPoint,
+                1*aura_env.offsetXMulti,
+                1*aura_env.offsetYMulti
+            )
+            bar.cast:SetWidth(castWidth)
+            bar.cast:SetHeight(castHeight)
+            bar.cast:SetVertexColor(aura_env.predictionColor.r, aura_env.predictionColor.g, aura_env.predictionColor.b, aura_env.predictionColor.a)
+            bar.cast:Show()
+            --Stop prediction from extending outside of the bar
+            if castSize + astralSize > maxAstralSize then
+                bar.cast:SetVertexColor(0.85, 0, 0, 1)
+            end
+        else
+            bar.cast:Hide()
+        end
+        return red, green, blue, alpha
+    end
+end
+
+-- init
+aura_env.moonkinHaste = true
+aura_env.predictionOverwrite = false
+aura_env.predictionColor = { -- Changes the colour of the prediction bar
+    ["r"] = 0.65,  -- red value
+    ["g"] = 0.15,  -- green value
+    ["b"] = 1,  -- blue value
+    ["a"] = 1,  -- alpha value
+}
+
+aura_env.powerCasts = {-- generation, Blessing of Elune, Celestial Alignment, Incarnation
+    [GetSpellInfo(202767)] = {10, false, false, false}, --New Moon
+    [GetSpellInfo(202768)] = {20, false, false, false}, --Half Moon
+    [GetSpellInfo(202771)] = {40, false, false, false}, --Full Moon
+    [GetSpellInfo(194153)] = {12, true, true, true}, --Lunar Strike
+    [GetSpellInfo(190984)] = {8, true, true, true}, --Solar Wrath
+}
+aura_env.powerBuffs = {
+    [GetSpellInfo(202737)] = 1.25, --Blessing of Elune
+    [GetSpellInfo(194223)] = 1.5, --Celestial Alignment
+    [GetSpellInfo(102560)] = 1.5, --Incarnation: Chosen of Elune 
+}
+aura_env.getPowerFromCast = function()
+    local cast = UnitCastingInfo("player") or UnitChannelInfo("player") or nil
+    if not cast then
+        return 0
+    end
+    local data = aura_env.powerCasts[cast] or nil
+    if not data then
+        return 0
+    end
+    local power = data[1] or 0 
+    if data[2] and UnitBuff("player", GetSpellInfo(202737)) then --Blessing of Elune
+        power = data[1] * 1.25
+    end
+    
+    if data[3] and UnitBuff("player", GetSpellInfo(194223)) or UnitBuff("player", GetSpellInfo(102560)) then --Celestial Alignmnt/Incarnation: Chosen of Elune 
+        power = power * 1.5
+    end    
+    
+    return Round(power)
+end
+
+--frame stuff
+aura_env.orientation = WeakAuras.regions[aura_env.id].region.orientation
+if aura_env.orientation == "HORIZONTAL" then
+    aura_env.point = "LEFT"
+    aura_env.offsetXMulti = 0
+    aura_env.offsetYMulti = 0
+    aura_env.castPoint = "RIGHT"
+elseif aura_env.orientation == "HORIZONTAL_INVERSE" then
+    aura_env.point = "RIGHT"
+    aura_env.offsetXMulti = -1
+    aura_env.offsetYMulti = 0
+    aura_env.castPoint = "LEFT"
+elseif aura_env.orientation == "VERTICAL" then
+    aura_env.point = "TOP"
+    aura_env.offsetXMulti = 0
+    aura_env.offsetYMulti = -1
+    aura_env.castPoint = "BOTTOM"
+elseif aura_env.orientation == "VERTICAL_INVERSE" then
+    aura_env.point = "BOTTOM"
+    aura_env.offsetXMulti = 0
+    aura_env.offsetYMulti = 1
+    aura_env.castPoint = "TOP"
+end
+
+local bar = WeakAuras.regions[aura_env.id].region.bar
+
+--create cast bar
+if bar.cast then bar.cast:Hide() end
+local cast = bar:CreateTexture(nil, "ARTWORK")
+bar.cast = cast
+bar.cast:SetDrawLayer("ARTWORK", 3)
+bar.cast:SetTexture(bar:GetTexture())
+bar.cast:SetBlendMode("ALPHAKEY")
+bar.cast:SetVertexColor(1,1,1,0.3)
+if aura_env.orientation == "HORIZONTAL" or aura_env.orientation == "HORIZONTAL_INVERSE" then
+    bar.cast:SetWidth(50)
+    bar.cast:SetHeight(bar:GetHeight())
+elseif aura_env.orientation == "VERTICAL" or aura_env.orientation == "VERTICAL_INVERSE" then
+    bar.cast:SetWidth(bar:GetWidth())
+    bar.cast:SetHeight(50)
+end
+
+--Text 1
+local bar = WeakAuras.regions[aura_env.id].region.bar
+if bar.centerText then bar.centerText:Hide() end
+local text1 = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+bar.centerText = text1
+bar.centerText:SetWordWrap(false)
+
+--Text 2
+if bar.leftText then bar.leftText:Hide() end
+text1 = bar:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+bar.leftText = text1
+bar.leftText:SetWordWrap(false)
